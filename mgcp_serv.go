@@ -15,35 +15,47 @@ type MGCPMessage struct {
     SDP string
 }
 
+func (msg MGCPMessage) String () (string) {
+    result := fmt.Sprintf("%s %s %s %s\n", msg.Verb, msg.TransID, msg.EndpointName, msg.MGCPVer)
+    for key, value := range msg.Parameters {
+        result += fmt.Sprintf("%s: %s\n", key, value)
+    }
+    if msg.SDP != "" {
+        result += "\n"
+        result += msg.SDP
+    }
+    return result
+}
+
 func main() {
-    netbuf := make([]byte, 65535)
+    netbuf := make([]byte, 4096)
     conn, _ := net.ListenPacket("udp", "127.0.0.1:2427")
 
     _, addr, _ := conn.ReadFrom(netbuf)
 
     fmt.Println(addr)
-    fmt.Printf("%s", netbuf)
 
-    parseMGCP(string(netbuf))
+    fmt.Printf("%s\n\n\n", netbuf)
 
-    response := "500 Internal Server Error"
+    response := parseMGCP(string(netbuf))
 
-    conn.WriteTo([]byte(response), addr)
+    fmt.Printf("%s\n", []byte(response))
+    if _, err := conn.WriteTo([]byte(response), addr); err != nil {
+        fmt.Println(err)
+    }
 
 }
 
-func parseMGCP (packet string) {
+func parseMGCP (packet string) (string) {
 
     var msg MGCPMessage
-    msg.Parameters = make(map[string]string, 500)
+    msg.Parameters = make(map[string]string, 20)
 
     sdp := 0
     sdpString := ""
 
     lines := strings.Split(packet, "\n")
     mgcpCommand := strings.Split(lines[0], " ")
-    
-    fmt.Printf("Verb is %s\nTransaction ID is %s\nEndpoint name is %s\nMGCP version is %s\n", mgcpCommand[0], mgcpCommand[1], mgcpCommand[2], mgcpCommand[3:])
     
     msg.Verb = mgcpCommand[0]
     msg.TransID = mgcpCommand[1]
@@ -58,7 +70,6 @@ func parseMGCP (packet string) {
     
         if sdp == 0 {
             mgcpParam := strings.Split(line, ": ")
-            fmt.Printf("Value of %s is %s\n", mgcpParam[0], mgcpParam[1])
             msg.Parameters[mgcpParam[0]] = mgcpParam[1]
         } else {
             sdpString += line
@@ -67,8 +78,7 @@ func parseMGCP (packet string) {
     }
 
     if sdp == 1 {
-        fmt.Printf("SDP is %s\n", sdpString)
         msg.SDP = sdpString
     }
-    fmt.Printf("%s", msg)
+    return fmt.Sprintf("%s", msg)
 }
