@@ -3,82 +3,42 @@ package main
 import (
 "net"
 "fmt"
-"strings"
 )
-
-type MGCPMessage struct {
-    Verb string
-    TransID string
-    EndpointName string
-    MGCPVer string
-    Parameters map[string]string
-    SDP string
-}
-
-func (msg MGCPMessage) String () (string) {
-    result := fmt.Sprintf("%s %s %s %s\n", msg.Verb, msg.TransID, msg.EndpointName, msg.MGCPVer)
-    for key, value := range msg.Parameters {
-        result += fmt.Sprintf("%s: %s\n", key, value)
-    }
-    if msg.SDP != "" {
-        result += "\n"
-        result += msg.SDP
-    }
-    return result
-}
 
 func main() {
     netbuf := make([]byte, 4096)
     conn, _ := net.ListenPacket("udp", "127.0.0.1:2427")
 
-    _, addr, _ := conn.ReadFrom(netbuf)
+    for {
+        _, addr, _ := conn.ReadFrom(netbuf)
 
-    fmt.Println(addr)
+        go parseMGCP(string(netbuf), conn, addr)
+    }
+}
 
-    fmt.Printf("%s\n\n\n", netbuf)
+func MGCPCommandRespond(msg MGCPCommand, conn net.PacketConn, addr net.Addr) {
+    MGCPCommandRespondEcho(msg, conn, addr)
+}
 
-    response := parseMGCP(string(netbuf))
+func MGCPCommandRespondEcho(msg MGCPCommand, conn net.PacketConn, addr net.Addr) {
+    str_reply := fmt.Sprintf("%s", msg)
 
-    fmt.Printf("%s\n", []byte(response))
-    if _, err := conn.WriteTo([]byte(response), addr); err != nil {
+    if _, err := conn.WriteTo([]byte(str_reply), addr); err != nil {
         fmt.Println(err)
     }
 
 }
 
-func parseMGCP (packet string) (string) {
+func MGCPCommandRespondErr(msg MGCPCommand, conn net.PacketConn, addr net.Addr) {
+    var reply MGCPResponse
+    reply.ResponseCode = "504"
+    reply.TransID = msg.TransID
+    reply.ResponseStr = "ERR"
 
-    var msg MGCPMessage
-    msg.Parameters = make(map[string]string, 20)
+    str_reply := fmt.Sprintf("%s", reply)
 
-    sdp := 0
-    sdpString := ""
-
-    lines := strings.Split(packet, "\n")
-    mgcpCommand := strings.Split(lines[0], " ")
-    
-    msg.Verb = mgcpCommand[0]
-    msg.TransID = mgcpCommand[1]
-    msg.EndpointName = mgcpCommand[2]
-    msg.MGCPVer = strings.Join(mgcpCommand[3:], " ")
-
-    for _, line := range lines[1:] {
-        if line == "" {
-            sdp = 1
-            continue
-        }
-    
-        if sdp == 0 {
-            mgcpParam := strings.Split(line, ": ")
-            msg.Parameters[mgcpParam[0]] = mgcpParam[1]
-        } else {
-            sdpString += line
-            sdpString += "\n"
-        }
+    if _, err := conn.WriteTo([]byte(str_reply), addr); err != nil {
+        fmt.Println(err)
     }
 
-    if sdp == 1 {
-        msg.SDP = sdpString
-    }
-    return fmt.Sprintf("%s", msg)
 }
