@@ -1,0 +1,4 @@
+go-mgcp is a MGCP implementation written in Go. Ultimately it is intended to
+result in a high-performing dummy MG, which can simulate either making or
+terminating calls at a high rate (like SIPp does for SIP), allowing easy
+performance testing.
